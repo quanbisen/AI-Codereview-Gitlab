@@ -77,6 +77,7 @@ class MergeRequestHandler:
         # 检查是否为 Merge Request Hook 事件
         if self.event_type != 'merge_request':
             logger.warn(f"Invalid event type: {self.event_type}. Only 'merge_request' event is supported now.")
+            logger.warn(f"Invalid event type: {self.event_type}. Only 'merge_request' event is supported now.")
             return []
 
         # Gitlab merge request changes API可能存在延迟，多次尝试
