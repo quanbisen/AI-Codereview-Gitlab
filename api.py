@@ -27,6 +27,7 @@ from biz.utils.config_checker import check_config
 api_app = Flask(__name__)
 
 push_review_enabled = os.environ.get('PUSH_REVIEW_ENABLED', '0') == '1'
+report_group_enabled = os.environ.get('REPORT_GROUP_ENABLED', '0') == '1'
 
 
 @api_app.route('/')
@@ -53,19 +54,41 @@ def daily_report():
         if df.empty:
             logger.info("No data to process.")
             return jsonify({'message': 'No data to process.'}), 200
+        
         # 去重：基于 (author, message) 组合
         df_unique = df.drop_duplicates(subset=["author", "commit_messages"])
-        # 按照 author 排序
-        df_sorted = df_unique.sort_values(by="author")
-        # 转换为适合生成日报的格式
-        commits = df_sorted.to_dict(orient="records")
-        # 生成日报内容
-        report_txt = Reporter().generate_report(json.dumps(commits))
-        # 发送钉钉通知
-        notifier.send_notification(content=report_txt, msg_type="markdown", title="代码提交日报")
-
-        # 返回生成的日报内容
-        return json.dumps(report_txt, ensure_ascii=False, indent=4)
+        
+        if report_group_enabled and "gitlab_group" in df_unique.columns:
+            # 按照gitlab_group分组处理
+            logger.info("Generating reports grouped by gitlab_group")
+            all_reports = {}
+            # 获取所有不同的gitlab_group值，gitlab_group为空字符串也包含在内
+            groups = df_unique["gitlab_group"].dropna().unique()
+            
+            # 对每个组分别生成报告
+            for group in groups:
+                # 筛选该组的数据
+                group_df = df_unique[df_unique["gitlab_group"] == group]
+                # 按照author排序
+                group_df_sorted = group_df.sort_values(by="author")
+                # 转换为适合生成日报的格式
+                group_commits = group_df_sorted.to_dict(orient="records")
+                # 生成该组的日报内容
+                group_report = Reporter().generate_report(json.dumps(group_commits))
+                all_reports[group] = group_report
+                # 发送该组的通知
+                notifier.send_notification(content=group_report, msg_type="markdown", title=f"{group}组代码提交日报",
+                                           gitlab_group=group)
+            
+            # 返回所有组的报告
+            return json.dumps(all_reports, ensure_ascii=False, indent=4)
+        else:
+            # 原来的逻辑：不分组
+            df_sorted = df_unique.sort_values(by="author")
+            commits = df_sorted.to_dict(orient="records")
+            report_txt = Reporter().generate_report(json.dumps(commits))
+            notifier.send_notification(content=report_txt, msg_type="markdown", title="代码提交日报")
+            return json.dumps(report_txt, ensure_ascii=False, indent=4)
     except Exception as e:
         logger.error(f"Failed to generate daily report: {e}")
         return jsonify({'message': f"Failed to generate daily report: {e}"}), 500

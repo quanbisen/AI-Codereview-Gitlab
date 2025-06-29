@@ -14,7 +14,7 @@ class WeComNotifier:
         self.default_webhook_url = webhook_url or os.environ.get('WECOM_WEBHOOK_URL', '')
         self.enabled = os.environ.get('WECOM_ENABLED', '0') == '1'
 
-    def _get_webhook_url(self, project_name=None, url_slug=None):
+    def _get_webhook_url(self, project_name=None, url_slug=None, gitlab_group=None):
         """
         获取项目对应的 Webhook URL
         :param project_name: 项目名称
@@ -31,6 +31,7 @@ class WeComNotifier:
         # 构造目标键
         target_key_project = f"WECOM_WEBHOOK_URL_{project_name.upper()}"
         target_key_url_slug = f"WECOM_WEBHOOK_URL_{url_slug.upper()}"
+        target_gitlab_group = f"WECOM_WEBHOOK_URL_{gitlab_group.upper()}"
 
         # 遍历环境变量
         for env_key, env_value in os.environ.items():
@@ -39,6 +40,8 @@ class WeComNotifier:
                 return env_value  # 找到项目名称对应的 Webhook URL，直接返回
             if env_key_upper == target_key_url_slug:
                 return env_value  # 找到 GitLab URL 对应的 Webhook URL，直接返回
+            if gitlab_group and env_key_upper == target_gitlab_group:
+                return env_value  # 找到 GitLab Group 对应的 Webhook URL，直接返回
 
         # 如果未找到匹配的环境变量，降级使用全局的 Webhook URL
         if self.default_webhook_url:
@@ -67,7 +70,7 @@ class WeComNotifier:
         return formatted_content
 
     def send_message(self, content, msg_type='text', title=None, is_at_all=False, project_name=None,
-                     url_slug=None):
+                     url_slug=None, gitlab_group=None):
         """
         发送企业微信消息
         :param content: 消息内容
@@ -76,13 +79,14 @@ class WeComNotifier:
         :param is_at_all: 是否 @所有人
         :param project_name: 关联项目名称
         :param url_slug: GitLab URL Slug
+        :param gitlab_group: GitLab Group
         """
         if not self.enabled:
             logger.info("企业微信推送未启用")
             return
 
         try:
-            post_url = self._get_webhook_url(project_name=project_name, url_slug=url_slug)
+            post_url = self._get_webhook_url(project_name=project_name, url_slug=url_slug, gitlab_group=gitlab_group)
             # 企业微信消息内容最大长度限制
             # text类型最大2048字节
             # https://developer.work.weixin.qq.com/document/path/91770#%E6%96%87%E6%9C%AC%E7%B1%BB%E5%9E%8B

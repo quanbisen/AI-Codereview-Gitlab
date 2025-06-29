@@ -45,6 +45,7 @@ def handle_push_event(webhook_data: dict, gitlab_token: str, gitlab_url: str, gi
             # 将review结果提交到Gitlab的 notes
             handler.add_push_notes(f'Auto Review Result: \n{review_result}')
 
+        gitlab_group = webhook_data.get("project", {}).get("path_with_namespace", "").split("/")[0]
         event_manager['push_reviewed'].send(PushReviewEntity(
             project_name=webhook_data['project']['name'],
             author=webhook_data['user_username'],
@@ -57,6 +58,7 @@ def handle_push_event(webhook_data: dict, gitlab_token: str, gitlab_url: str, gi
             webhook_data=webhook_data,
             additions=additions,
             deletions=deletions,
+            gitlab_group=gitlab_group,
         ))
 
     except Exception as e:
@@ -116,6 +118,8 @@ def handle_merge_request_event(webhook_data: dict, gitlab_token: str, gitlab_url
         # 将review结果提交到Gitlab的 notes
         handler.add_merge_request_notes(f'Auto Review Result: \n{review_result}')
 
+        gitlab_group = webhook_data.get("project", {}).get("path_with_namespace", "").split("/")[0]
+
         # dispatch merge_request_reviewed event
         event_manager['merge_request_reviewed'].send(
             MergeRequestReviewEntity(
@@ -132,6 +136,7 @@ def handle_merge_request_event(webhook_data: dict, gitlab_token: str, gitlab_url
                 webhook_data=webhook_data,
                 additions=additions,
                 deletions=deletions,
+                gitlab_group=gitlab_group,
             )
         )
 

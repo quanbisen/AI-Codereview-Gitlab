@@ -24,9 +24,10 @@ def authenticate(username, password):
 
 
 # 获取数据函数
-def get_data(service_func, authors=None, project_names=None, updated_at_gte=None, updated_at_lte=None, columns=None):
+def get_data(service_func, authors=None, project_names=None, updated_at_gte=None, updated_at_lte=None, columns=None,
+             gitlab_groups=None):
     df = service_func(authors=authors, project_names=project_names, updated_at_gte=updated_at_gte,
-                      updated_at_lte=updated_at_lte)
+                      updated_at_lte=updated_at_lte, gitlab_groups=gitlab_groups)
 
     if df.empty:
         return pd.DataFrame(columns=columns)
@@ -252,7 +253,14 @@ def main_page():
             with col4:
                 project_names = st.multiselect("项目名", unique_projects, default=[], key=f"{tab}_projects")
 
-            data = get_data(service_func, authors=authors, project_names=project_names,
+            # 添加gitlab组过滤
+            unique_gitlab_groups = sorted(df["gitlab_group"].dropna().
+                                          loc[lambda x: x.str.strip() != ''].unique().tolist()) if not df.empty else []
+            col5, col6, col7, col8 = st.columns(4)
+            with col5:
+                gitlab_groups = st.multiselect("Gitlab分组", unique_gitlab_groups, default=[], key=f"{tab}_gitlab_groups")
+
+            data = get_data(service_func, authors=authors, project_names=project_names, gitlab_groups=gitlab_groups,
                             updated_at_gte=int(start_datetime.timestamp()),
                             updated_at_lte=int(end_datetime.timestamp()), columns=columns)
             df = pd.DataFrame(data)
@@ -294,7 +302,7 @@ def main_page():
 
     # Merge Request 数据展示
     mr_columns = ["project_name", "author", "source_branch", "target_branch", "updated_at", "commit_messages", "delta",
-                  "score", "url", "additions", "deletions"]
+                  "score", "url", "additions", "deletions", "gitlab_group"]
 
     mr_column_config = {
         "score": st.column_config.ProgressColumn(
@@ -308,13 +316,15 @@ def main_page():
         ),
         "additions": None,
         "deletions": None,
+        "gitlab_group": None,
     }
 
     display_data(mr_tab, ReviewService().get_mr_review_logs, mr_columns, mr_column_config)
 
     # Push 数据展示
     if show_push_tab:
-        push_columns = ["project_name", "author", "branch", "updated_at", "commit_messages", "delta", "score", "additions", "deletions"]
+        push_columns = ["project_name", "author", "branch", "updated_at", "commit_messages", "delta", "score",
+                        "additions", "deletions", "gitlab_group"]
 
         push_column_config = {
             "score": st.column_config.ProgressColumn(
@@ -324,6 +334,7 @@ def main_page():
             ),
             "additions": None,
             "deletions": None,
+            "gitlab_group": None,
         }
 
         display_data(push_tab, ReviewService().get_push_review_logs, push_columns, push_column_config)
