@@ -246,19 +246,26 @@ def main_page():
                             updated_at_lte=int(end_datetime.timestamp()), columns=columns)
             df = pd.DataFrame(data)
 
-            unique_authors = sorted(df["author"].dropna().unique().tolist()) if not df.empty else []
-            unique_projects = sorted(df["project_name"].dropna().unique().tolist()) if not df.empty else []
-            with col3:
-                authors = st.multiselect("用户名", unique_authors, default=[], key=f"{tab}_authors")
-            with col4:
-                project_names = st.multiselect("项目名", unique_projects, default=[], key=f"{tab}_projects")
-
             # 添加gitlab组过滤
             unique_gitlab_groups = sorted(df["gitlab_group"].dropna().
                                           loc[lambda x: x.str.strip() != ''].unique().tolist()) if not df.empty else []
             col5, col6, col7, col8 = st.columns(4)
             with col5:
                 gitlab_groups = st.multiselect("Gitlab分组", unique_gitlab_groups, default=[], key=f"{tab}_gitlab_groups")
+            
+            # 根据选择的gitlab_groups筛选数据
+            filtered_df = df
+            if gitlab_groups:
+                filtered_df = df[df["gitlab_group"].isin(gitlab_groups)]
+            
+            # 从筛选后的数据中获取作者和项目名称
+            unique_authors = sorted(filtered_df["author"].dropna().unique().tolist()) if not filtered_df.empty else []
+            unique_projects = sorted(filtered_df["project_name"].dropna().unique().tolist()) if not filtered_df.empty else []
+            
+            with col3:
+                authors = st.multiselect("用户名", unique_authors, default=[], key=f"{tab}_authors")
+            with col4:
+                project_names = st.multiselect("项目名", unique_projects, default=[], key=f"{tab}_projects")
 
             data = get_data(service_func, authors=authors, project_names=project_names, gitlab_groups=gitlab_groups,
                             updated_at_gte=int(start_datetime.timestamp()),
