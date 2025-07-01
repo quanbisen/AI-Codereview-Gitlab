@@ -20,38 +20,41 @@ class DingTalkNotifier:
         """
         获取项目对应的 Webhook URL
         :param project_name: 项目名称
-        :param url_slug: 由 gitlab 项目的 url 转换而来的 slug
+        :param url_slug: GitLab URL Slug
+        :param gitlab_group: GitLab Group
         :return: Webhook URL
         :raises ValueError: 如果未找到 Webhook URL
         """
-        # 如果未提供 project_name，直接返回默认的 Webhook URL
-        if not project_name:
-            if self.default_webhook_url:
-                return self.default_webhook_url
-            else:
-                raise ValueError("未提供项目名称，且未设置默认的钉钉 Webhook URL。")
+        # 如果有默认webhook_url，将其设为备选方案
+        fallback_url = self.default_webhook_url
+        
+        # 如果未提供 project_name、url_slug 和 gitlab_group，直接返回默认的 Webhook URL
+        if not project_name and not url_slug and not gitlab_group:
+            if fallback_url:
+                return fallback_url
+            raise ValueError("未提供项目名称、url_slug、gitlab组，且未设置默认的钉钉 Webhook URL。")
 
-        # 构造目标键
-        target_key_project = f"DINGTALK_WEBHOOK_URL_{project_name.upper()}"
-        target_key_url_slug = f"DINGTALK_WEBHOOK_URL_{url_slug.upper()}"
-        target_key_gitlab_group = f"DINGTALK_WEBHOOK_URL_{gitlab_group.upper()}"
-
-        # 遍历环境变量
-        for env_key, env_value in os.environ.items():
-            env_key_upper = env_key.upper()
-            if env_key_upper == target_key_project:
-                return env_value  # 找到项目名称对应的 Webhook URL，直接返回
-            if env_key_upper == target_key_url_slug:
-                return env_value  # 找到 GitLab URL 对应的 Webhook URL，直接返回
-            if gitlab_group and env_key_upper == target_key_gitlab_group:
-                return env_value  # 找到 GitLab Group 对应的 Webhook URL，直接返回
-
+        # 构建环境变量键名和优先级列表
+        env_keys = []
+        if project_name:
+            env_keys.append((f"DINGTALK_WEBHOOK_URL_{project_name.upper()}", f"项目 '{project_name}'"))
+        if url_slug:
+            env_keys.append((f"DINGTALK_WEBHOOK_URL_{url_slug.upper()}", f"URL Slug '{url_slug}'"))
+        if gitlab_group:
+            env_keys.append((f"DINGTALK_WEBHOOK_URL_{gitlab_group.upper()}", f"GitLab Group '{gitlab_group}'"))
+        
+        # 按优先级检查环境变量
+        for key, _ in env_keys:
+            if key in os.environ:
+                return os.environ[key]
+        
         # 如果未找到匹配的环境变量，降级使用全局的 Webhook URL
-        if self.default_webhook_url:
-            return self.default_webhook_url
-
-        # 如果既未找到匹配项，也没有默认值，抛出异常
-        raise ValueError(f"未找到项目 '{project_name}' 对应的钉钉Webhook URL，且未设置默认的 Webhook URL。")
+        if fallback_url:
+            return fallback_url
+            
+        # 构建错误消息，包含所有尝试的键
+        error_sources = " 或 ".join([desc for _, desc in env_keys])
+        raise ValueError(f"未找到{error_sources}对应的钉钉 Webhook URL，且未设置默认的 Webhook URL。")
 
     def send_message(self, content: str, msg_type='text', title='通知', is_at_all=False, project_name=None,
                      url_slug=None, gitlab_group=None):
