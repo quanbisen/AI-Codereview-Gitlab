@@ -67,18 +67,21 @@ def daily_report():
             
             # 对每个组分别生成报告
             for group in groups:
-                # 筛选该组的数据
-                group_df = df_unique[df_unique["gitlab_group"] == group]
-                # 按照author排序
-                group_df_sorted = group_df.sort_values(by="author")
-                # 转换为适合生成日报的格式
-                group_commits = group_df_sorted.to_dict(orient="records")
-                # 生成该组的日报内容
-                group_report = Reporter().generate_report(json.dumps(group_commits))
-                all_reports[group] = group_report
-                # 发送该组的通知
-                notifier.send_notification(content=group_report, msg_type="markdown", title=f"{group}组代码提交日报",
-                                           gitlab_group=group)
+                try:
+                    # 筛选该组的数据
+                    group_df = df_unique[df_unique["gitlab_group"] == group]
+                    # 按照author排序
+                    group_df_sorted = group_df.sort_values(by="author")
+                    # 转换为适合生成日报的格式
+                    group_commits = group_df_sorted.to_dict(orient="records")
+                    # 生成该组的日报内容
+                    group_report = Reporter().generate_report(json.dumps(group_commits))
+                    all_reports[group] = group_report
+                    # 发送该组的通知
+                    notifier.send_notification(content=group_report, msg_type="markdown", title=f"{group}组代码提交日报",
+                                               gitlab_group=group)
+                except Exception as e:
+                    logger.error(f"Failed to generate report for group {group}: {e}")
             
             # 返回所有组的报告
             return json.dumps(all_reports, ensure_ascii=False, indent=4)
